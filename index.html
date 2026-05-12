@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Starlink DTC Tracker</title>
+
+  <!-- Cesium -->
+  <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Widgets/widgets.css">
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Cesium.js"></script>
+
+  <!-- satellite.js -->
+  <script src="https://unpkg.com/satellite.js@4.1.4/dist/satellite.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #000;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    #cesiumContainer {
+      width: 100%; height: 100%;
+    }
+
+    /* ── Status bar ── */
+    #status {
+      position: fixed;
+      top: 12px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.65);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 20px;
+      padding: 6px 18px;
+      font-size: 13px;
+      color: #ccc;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* ── V3 watch banner ── */
+    #v3-banner {
+      display: none;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      text-align: center;
+      background: #1a1a2e;
+      border-top: 2px solid #ff4500;
+      color: #fff;
+      z-index: 10;
+    }
+
+    #v3-watch-label {
+      position: fixed;
+      bottom: 12px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      border: 1px solid rgba(255,69,0,0.4);
+      border-radius: 20px;
+      padding: 5px 16px;
+      font-size: 12px;
+      color: #ff6633;
+      pointer-events: none;
+      z-index: 9;
+    }
+
+    /* ── Legend ── */
+    #legend {
+      position: fixed;
+      top: 52px; right: 16px;
+      background: rgba(0,0,0,0.7);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      z-index: 10;
+      min-width: 130px;
+    }
+
+    #legend h4 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+    }
+
+    .legend-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Satellite popup ── */
+    #popup {
+      display: none;
+      position: fixed;
+      width: 270px;
+      background: rgba(10, 15, 28, 0.92);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 10px;
+      padding: 14px;
+      z-index: 20;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+      pointer-events: none;
+    }
+
+    .popup-name {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #fff;
+      letter-spacing: 0.03em;
+    }
+
+    .popup-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      color: #000;
+      margin-bottom: 8px;
+    }
+
+    .popup-alt {
+      font-size: 13px;
+      color: #aaa;
+      margin-bottom: 4px;
+    }
+
+    .popup-spec {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+
+    #popup img {
+      width: 100%;
+      border-radius: 6px;
+      display: block;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .no-image {
+      font-size: 11px;
+      color: #555;
+      text-align: center;
+      padding: 12px 0;
+    }
+
+    /* ── Orbit filter ── */
+    #orbit-filter {
+      position: fixed;
+      top: 52px; right: 16px;
+      margin-top: 136px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      z-index: 10;
+    }
+
+    .filter-btn {
+      background: rgba(0,0,0,0.65);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 6px;
+      color: #888;
+      font-size: 12px;
+      padding: 5px 12px;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+
+    .filter-btn:hover { border-color: rgba(255,255,255,0.4); color: #ccc; }
+
+    .filter-btn.active {
+      border-color: rgba(255,255,255,0.6);
+      color: #fff;
+      background: rgba(255,255,255,0.08);
+    }
+
+    /* ── V3 countdown ── */
+    #countdown-panel {
+      position: fixed;
+      bottom: 20px; left: 20px;
+      background: rgba(0,0,0,0.75);
+      border: 1px solid rgba(255,140,0,0.5);
+      border-radius: 10px;
+      padding: 12px 18px;
+      z-index: 10;
+      min-width: 220px;
+      backdrop-filter: blur(6px);
+    }
+
+    #countdown-panel h4 {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #FF8C00;
+      margin-bottom: 6px;
+    }
+
+    #countdown-digits {
+      font-size: 22px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #FFD700;
+      letter-spacing: 0.03em;
+      margin-bottom: 4px;
+    }
+
+    #countdown-label {
+      font-size: 11px;
+      color: #888;
+    }
+
+    #countdown-panel.launched {
+      border-color: rgba(255,215,0,0.7);
+      background: rgba(30,20,0,0.85);
+    }
+
+    #countdown-panel.launched h4 { color: #FFD700; }
+    #countdown-panel.launched #countdown-digits { font-size: 14px; color: #FFD700; }
+  </style>
+</head>
+<body>
+
+  <div id="cesiumContainer"></div>
+
+  <div id="status">Initializing…</div>
+
+  <div id="legend">
+    <h4>Starlink DTC</h4>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#00cfff"></div>
+      <span>V2</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#7ecfff"></div>
+      <span>V2 Mini</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#aaaaaa"></div>
+      <span>V1</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#ff4500"></div>
+      <span>330 km VLEO shell</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#FFD700; box-shadow:0 0 6px #FF8C00"></div>
+      <span>V3 DTC (Q4 2026)</span>
+    </div>
+  </div>
+
+  <div id="orbit-filter">
+    <button class="filter-btn active" onclick="setOrbitFilter('all', this)">All orbits</button>
+    <button class="filter-btn" onclick="setOrbitFilter('550', this)">550 km LEO</button>
+    <button class="filter-btn" onclick="setOrbitFilter('330', this)">330 km VLEO</button>
+  </div>
+
+  <div id="countdown-panel">
+    <h4>⚡ Starlink V3 DTC Launch</h4>
+    <div id="countdown-digits">–</div>
+    <div id="countdown-label"></div>
+  </div>
+
+  <div id="v3-banner"></div>
+
+  <div id="popup"></div>
+
+  <!-- App scripts (order matters: config → tle → tracker → popup) -->
+  <script src="config.js"></script>
+  <script src="tle.js"></script>
+  <script src="tracker.js"></script>
+  <script src="popup.js"></script>
+
+  <script>
+    (async () => {
+      initViewer();
+      initPopup();
+      await loadSatellites();
+    })();
+  </script>
+
+</body>
+</html>

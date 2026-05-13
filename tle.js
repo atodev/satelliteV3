@@ -2,15 +2,18 @@
 const GM = 398600.4418;
 const EARTH_RADIUS_KM = 6371;
 
+// CelesTrak returns HTTP 403 (not 200) when data hasn't changed since the last
+// download from this IP within the 2-hour update window. It is not a real error.
+// Treat any 403 as "no new data" — CelesTrak does not use 403 for anything else
+// on this endpoint.
 async function fetchTLEs() {
   const resp = await fetch(CONFIG.CELESTRAK_URL);
-  const text = await resp.text();
 
-  // CelesTrak returns HTTP 403 + this message when data hasn't changed since the
-  // last download from this IP (within the 2-hour update window). Not a real error.
-  if (text.startsWith('GP data has not updated')) return null;
-
+  if (resp.status === 403) return null;
   if (!resp.ok) throw new Error(`CelesTrak fetch failed: ${resp.status}`);
+
+  const text = await resp.text();
+  if (text.startsWith('GP data has not updated')) return null;
 
   return parseTLEText(text);
 }
@@ -18,8 +21,6 @@ async function fetchTLEs() {
 function parseTLEText(text) {
   const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
   const satellites = [];
-  let parseErrors = 0;
-  let altSample = [];
 
   for (let i = 0; i + 2 < lines.length; i += 3) {
     const name = lines[i];
@@ -34,16 +35,12 @@ function parseTLEText(text) {
       const altKm = meanAltitudeKm(tle2);
       const version = getVersion(noradId);
 
-      if (altSample.length < 5) altSample.push(altKm);
       satellites.push({ name, tle1, tle2, satrec, noradId, altKm, version });
-    } catch (err) {
-      parseErrors++;
-      if (parseErrors <= 3) console.error('TLE parse error:', err, { name });
+    } catch (_) {
+      // skip malformed TLEs
     }
   }
 
-  console.log(`parseTLEText: ${lines.length} lines → ${satellites.length} satellites, ${parseErrors} errors`);
-  console.log('altitude sample (first 5):', altSample);
   return satellites;
 }
 
@@ -61,14 +58,13 @@ function getVersion(noradId) {
   for (const v of CONFIG.VERSIONS) {
     if (noradId >= v.minId && noradId <= v.maxId) return v;
   }
-  return CONFIG.VERSIONS[CONFIG.VERSIONS.length - 1]; // default to V1
+  return CONFIG.VERSIONS[CONFIG.VERSIONS.length - 1];
 }
 
 function filterByOrbit(satellites, { min, max }) {
   return satellites.filter(s => s.altKm >= min && s.altKm <= max);
 }
 
-// Check if any V3-orbit satellites have appeared (called on each TLE refresh)
 function checkForV3(satellites) {
   return satellites.filter(
     s => s.altKm >= CONFIG.V3_ORBIT_KM.min && s.altKm <= CONFIG.V3_ORBIT_KM.max

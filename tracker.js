@@ -46,9 +46,15 @@ async function loadSatellites() {
   }
 
   if (all === null) {
-    // CelesTrak says data unchanged — keep existing satellites, reschedule only
-    updateStatus(`${satelliteData.length} satellites tracked (TLE data current).`);
-    scheduleRefresh();
+    if (satelliteData.length === 0) {
+      // Cold start with no cached data — CelesTrak is rate-limiting this IP.
+      // Retry in 30 seconds rather than waiting the full refresh interval.
+      updateStatus('TLE data temporarily unavailable — retrying in 30s…');
+      setTimeout(loadSatellites, 30_000);
+    } else {
+      updateStatus(`${satelliteData.length} satellites tracked (TLE data current).`);
+      scheduleRefresh();
+    }
     return;
   }
 

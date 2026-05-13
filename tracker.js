@@ -48,7 +48,7 @@ async function loadSatellites() {
   // null = no live data and no cache
   if (result === null) {
     if (satelliteData.length === 0) {
-      updateStatus('No TLE data available — retrying in 30s…');
+      updateStatus('CelesTrak unreachable — retrying in 30s… <button onclick="loadSatellites()" style="margin-left:8px;padding:2px 10px;border-radius:10px;border:1px solid #aaa;background:rgba(255,255,255,0.1);color:#fff;cursor:pointer;font-size:12px">Retry now</button>');
       setTimeout(loadSatellites, 30_000);
     } else {
       scheduleRefresh();
@@ -136,7 +136,7 @@ function scheduleRefresh() {
 
 function updateStatus(msg) {
   const el = document.getElementById('status');
-  if (el) el.textContent = msg;
+  if (el) el.innerHTML = msg;
 }
 
 function setOrbitFilter(filter, btn) {

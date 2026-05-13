@@ -36,27 +36,31 @@ function initViewer() {
 async function loadSatellites() {
   updateStatus('Fetching TLE data from CelesTrak…');
 
-  let all;
+  let result;
   try {
-    all = await fetchTLEs();
+    result = await fetchTLEs();
   } catch (err) {
-    updateStatus('Failed to fetch TLE data. Check console for details.');
+    updateStatus('Failed to fetch TLE data.');
     console.error(err);
     return;
   }
 
-  if (all === null) {
+  // null = no live data and no cache
+  if (result === null) {
     if (satelliteData.length === 0) {
-      // Cold start with no cached data — CelesTrak is rate-limiting this IP.
-      // Retry in 30 seconds rather than waiting the full refresh interval.
-      updateStatus('TLE data temporarily unavailable — retrying in 30s…');
+      updateStatus('No TLE data available — retrying in 30s…');
       setTimeout(loadSatellites, 30_000);
     } else {
-      updateStatus(`${satelliteData.length} satellites tracked (TLE data current).`);
       scheduleRefresh();
     }
     return;
   }
+
+  // Unwrap cached vs live result
+  const all = result.sats ?? result;
+  const cacheLabel = result.fromCache
+    ? ` (cached data, ${result.ageHours.toFixed(1)}h old)`
+    : '';
 
   const filtered = filterByOrbit(all, CONFIG.ORBIT_FILTER_KM);
 
@@ -66,7 +70,7 @@ async function loadSatellites() {
   const v3Display = v3Found.map(s => ({ ...s, version: v3Version }));
 
   const toRender = [...filtered, ...v3Display];
-  updateStatus(`Loaded ${filtered.length} satellites at 550 km · ${v3Display.length} at 330 km (V3 orbit).`);
+  updateStatus(`${filtered.length} at 550 km · ${v3Display.length} at 330 km${cacheLabel}.`);
 
   // Rebuild point collection
   pointCollection.removeAll();

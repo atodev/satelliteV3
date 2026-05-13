@@ -7,10 +7,13 @@ const CACHE_KEY = 'starlink_tle_cache';
 // this IP (2-hour dedup window). We try multiple URLs with separate dedup keys,
 // and fall back to localStorage-cached TLE text so the app always shows satellites.
 async function fetchTLEs() {
-  // Try each URL in order
+  // Try each URL in order, with a 12-second timeout per attempt
   for (const url of CONFIG.CELESTRAK_URLS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12_000);
     try {
-      const resp = await fetch(url);
+      const resp = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
       const status = Number(resp.status);
 
       if (status === 403) continue;
@@ -25,7 +28,8 @@ async function fetchTLEs() {
         return sats;
       }
     } catch (_) {
-      // network error — try next URL
+      clearTimeout(timer);
+      // timeout or network error — try next URL
     }
   }
 

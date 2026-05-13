@@ -34,7 +34,7 @@ function initViewer() {
 }
 
 async function loadSatellites() {
-  updateStatus('Fetching TLE data from CelesTrak…');
+  updateStatus('Fetching TLE data… (may take up to 30s)');
 
   let result;
   try {

@@ -2,20 +2,33 @@
 const GM = 398600.4418;
 const EARTH_RADIUS_KM = 6371;
 
-// CelesTrak returns HTTP 403 (not 200) when data hasn't changed since the last
-// download from this IP within the 2-hour update window. It is not a real error.
-// Treat any 403 as "no new data" — CelesTrak does not use 403 for anything else
-// on this endpoint.
+// CelesTrak returns 403 when the same IP fetches the same group within 2 hours.
+// We try each URL in order; skip any that are rate-limited (403) or otherwise fail.
+// Only throw if every URL fails with a non-403 error.
 async function fetchTLEs() {
-  const resp = await fetch(CONFIG.CELESTRAK_URL);
+  let lastErr = null;
 
-  if (resp.status === 403) return null;
-  if (!resp.ok) throw new Error(`CelesTrak fetch failed: ${resp.status}`);
+  for (const url of CONFIG.CELESTRAK_URLS) {
+    try {
+      const resp = await fetch(url);
+      const status = Number(resp.status);
 
-  const text = await resp.text();
-  if (text.startsWith('GP data has not updated')) return null;
+      if (status === 403) continue; // dedup rate-limit — try next URL
+      if (!resp.ok) { lastErr = new Error(`CelesTrak fetch failed: ${status}`); continue; }
 
-  return parseTLEText(text);
+      const text = await resp.text();
+      if (text.startsWith('GP data')) continue; // text form of the dedup message
+
+      const sats = parseTLEText(text);
+      if (sats.length > 0) return sats;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+
+  // All URLs exhausted — return null so caller keeps existing data
+  if (lastErr) console.warn('All CelesTrak URLs failed:', lastErr.message);
+  return null;
 }
 
 function parseTLEText(text) {

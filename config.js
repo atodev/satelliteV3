@@ -1,7 +1,11 @@
 const CONFIG = {
-  // NAME query has a separate dedup key from GROUP, so it always returns fresh data.
-  // GROUP=starlink returns HTTP 403 ("no update") if the same IP fetched within 2 hours.
-  CELESTRAK_URL: 'https://celestrak.org/NORAD/elements/gp.php?NAME=STARLINK&FORMAT=TLE',
+  // CelesTrak returns 403 when the same IP fetched the same group within 2 hours.
+  // Each query type (NAME vs SPECIAL) has a separate dedup key, so we try them in
+  // order and use the first that returns valid TLE data.
+  CELESTRAK_URLS: [
+    'https://celestrak.org/NORAD/elements/gp.php?NAME=STARLINK&FORMAT=TLE',
+    'https://celestrak.org/NORAD/elements/gp.php?SPECIAL=starlink&FORMAT=TLE',
+  ],
 
   REFRESH_INTERVAL_MS: 300_000,   // re-fetch TLEs every 5 minutes
   PROPAGATE_INTERVAL_MS: 5_000,   // update positions every 5 seconds

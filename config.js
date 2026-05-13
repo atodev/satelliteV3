@@ -1,8 +1,9 @@
 const CONFIG = {
-  // CelesTrak returns 403 when the same IP fetched the same group within 2 hours.
-  // Each query type (NAME vs SPECIAL) has a separate dedup key, so we try them in
-  // order and use the first that returns valid TLE data.
+  // TLE data sources tried in order.
+  // /api/tle is our own Vercel proxy — CDN-cached for 2h, stale-served for 24h
+  // during CelesTrak outages. Direct CelesTrak URLs are fallback for local dev.
   CELESTRAK_URLS: [
+    '/api/tle',
     'https://celestrak.org/NORAD/elements/gp.php?NAME=STARLINK&FORMAT=TLE',
     'https://celestrak.org/NORAD/elements/gp.php?SPECIAL=starlink&FORMAT=TLE',
   ],

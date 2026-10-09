@@ -45,7 +45,7 @@ const CONFIG = {
       color: '#ff4500',
       pixelSize: 6,
       pulse: false,
-      spec: '330 km VLEO shell · Pre-V3 hardware',
+      spec: '300–360 km band · Pre-V3 hardware',
     },
     {
       label: 'V2',

@@ -24,16 +24,22 @@ function showPopup(sat, screenPos) {
     ? Math.round(sat.currentGeo.height)
     : Math.round(sat.altKm);
 
-  const imgUrl = CONFIG.VERSION_IMAGES[version.label] || '';
+  // VLEO-styled satellites show the image and generation of their real hardware
+  const hardware = sat.hardware || version;
+  const spec = sat.hardware
+    ? `${hardware.label} hardware · flying in the 300–360 km band`
+    : version.spec;
+
+  const imgUrl = CONFIG.VERSION_IMAGES[hardware.label] || '';
   const imgHtml = imgUrl
-    ? `<img src="${imgUrl}" alt="${version.label}" onerror="this.style.display='none'">`
+    ? `<img src="${imgUrl}" alt="${hardware.label}" onerror="this.style.display='none'">`
     : `<div class="no-image">No image available yet</div>`;
 
   popup.innerHTML = `
     <div class="popup-name">${sat.name}</div>
     <span class="popup-badge" style="background:${version.color}">${version.label}</span>
     <div class="popup-alt">Altitude: ${altKm} km · NORAD ${sat.noradId}</div>
-    <div class="popup-spec">${version.spec}</div>
+    <div class="popup-spec">${spec}</div>
     ${imgHtml}
   `;
 

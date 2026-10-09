@@ -67,10 +67,11 @@ async function loadSatellites() {
 
   const filtered = filterByOrbit(others, CONFIG.ORBIT_FILTER_KM);
 
-  // Always include 330 km shell satellites, restyled as VLEO
+  // Always include 330 km shell satellites, restyled as VLEO but remembering
+  // their hardware generation for the popup
   const vleoVersion = getVersionByLabel('330 km VLEO');
   const vleo = filterByOrbit(others, CONFIG.VLEO_ORBIT_KM)
-    .map(s => ({ ...s, version: vleoVersion }));
+    .map(s => ({ ...s, hardware: s.version, version: vleoVersion }));
 
   const toRender = [...filtered, ...vleo, ...v3];
   updateStatus(`${filtered.length} at 550 km · ${vleo.length} at 330 km · ${v3.length} V3${cacheLabel}.`);

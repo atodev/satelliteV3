@@ -4,17 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A pure-frontend satellite tracker for **Starlink Direct-to-Cell (DTC)** satellites. No backend — all data fetched client-side from CelesTrak.
+A pure-frontend satellite tracker for **Starlink Direct-to-Cell (DTC)** satellites. Data comes from CelesTrak via a small Vercel caching proxy (`api/gp.js`), with direct CelesTrak URLs as fallback.
 
-**Stack:** Cesium.js (3D globe) + satellite.js (SGP4 orbital propagation) + CelesTrak API (TLE data)
+**Stack:** Cesium.js (3D globe) + satellite.js (SGP4 orbital propagation) + CelesTrak API (GP data as OMM CSV)
 
 ## Architecture
 
 Single-page app with no build step intended — plain HTML/JS files served statically.
 
 Key data flow:
-1. Fetch TLE data from CelesTrak for Starlink DTC constellation
-2. Parse TLEs with satellite.js and propagate positions in real time
+1. Fetch GP data (OMM CSV) from CelesTrak for the Starlink constellation
+2. Build satrecs with `satellite.json2satrec` and propagate positions in real time
 3. Render satellite positions on a Cesium globe
 4. On hover: display a tooltip/popup with satellite version, specs, and image
 
@@ -22,12 +22,14 @@ Key data flow:
 
 - **POC target:** Starlink DTC at 550 km orbit (existing constellation, use for initial testing)
 - **Primary interest:** 330 km orbit (lower DTC orbit planned for V3)
-- **V3 satellites:** Expected first launch Q4 2026; ~150 Mbps data throughput
+- **V3 satellites:** First 26 launched 28 Sep 2026 on Starship Flight 14 (Group 31-1, designator `2026-225`), deployed near 270 km at 30.5° and raising. V3s are identified by launch designator via `CONFIG.V3_LAUNCHES` — add new V3 launches there. Whether these carry DTC payloads is unconfirmed
 - Satellite versions (V1, V2, V3) should be visually distinguished and shown in the hover popup
 
 ## CelesTrak API
 
 Starlink TLEs are available from CelesTrak's GP data endpoint. Filter by object name prefix `STARLINK` and cross-reference with DTC designation. The relevant group name for CelesTrak queries is likely `starlink`.
+
+Always request `FORMAT=CSV` (or another OMM format), never `FORMAT=TLE`: 5-digit NORAD IDs ran out at 69999 in July 2026, and satellites with 6-digit IDs (100000+) are omitted from TLE output.
 
 ## Cesium Setup
 

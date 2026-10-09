@@ -1,56 +1,56 @@
 const CONFIG = {
-  // TLE data sources tried in order.
-  // /api/tle is our own Vercel proxy — CDN-cached for 2h, stale-served for 24h
+  // GP data sources tried in order, all OMM CSV (TLE format cannot carry the
+  // 6-digit NORAD IDs assigned since July 2026, so newer satellites are absent from it).
+  // /api/gp is our own Vercel proxy — CDN-cached for 2h, stale-served for 24h
   // during CelesTrak outages. Direct CelesTrak URLs are fallback for local dev.
   CELESTRAK_URLS: [
-    '/api/tle',
-    'https://celestrak.org/NORAD/elements/gp.php?NAME=STARLINK&FORMAT=TLE',
-    'https://celestrak.org/NORAD/elements/gp.php?SPECIAL=starlink&FORMAT=TLE',
+    '/api/gp',
+    'https://celestrak.org/NORAD/elements/gp.php?NAME=STARLINK&FORMAT=CSV',
+    'https://celestrak.org/NORAD/elements/gp.php?SPECIAL=starlink&FORMAT=CSV',
   ],
 
-  REFRESH_INTERVAL_MS: 300_000,   // re-fetch TLEs every 5 minutes
+  REFRESH_INTERVAL_MS: 300_000,   // re-fetch GP data every 5 minutes
   PROPAGATE_INTERVAL_MS: 5_000,   // update positions every 5 seconds
 
   // 550 km shell filter for POC (DTC constellation altitude)
   ORBIT_FILTER_KM: { min: 530, max: 580 },
 
-  // V3 watch: alert when satellites appear at ~330 km
-  V3_ORBIT_KM: { min: 300, max: 360 },
+  // 330 km VLEO shell (non-V3 hardware flying low)
+  VLEO_ORBIT_KM: { min: 300, max: 360 },
 
-  // V3 DTC launch target — SpaceX said Q4 2026, no specific date announced yet.
-  // Update this when a launch date is confirmed.
-  V3_LAUNCH_TARGET: new Date('2026-10-01T00:00:00Z'),
-  V3_LAUNCH_DATE_LABEL: 'Q4 2026 · No specific date announced',
+  // Launches that carried V3 hardware, by international designator. V3s are
+  // identified by launch rather than altitude: they deploy near 270 km and
+  // raise from there. Add each new V3 launch here.
+  V3_LAUNCHES: [
+    { id: '2026-225', label: 'Group 31-1 · Starship Flight 14', date: '28 Sep 2026' },
+  ],
 
-  // NORAD IDs above this threshold are considered true V3 hardware (post-2026 launches).
-  // Adjust upward once we know the actual first V3 NORAD ID.
-  V3_TRUE_MIN_NORAD_ID: 80_000,
-
-  // Approximate NORAD ID thresholds by hardware generation
+  // V3 is matched by launch (above); the rest by approximate NORAD ID
+  // thresholds per hardware generation. IDs jump from 69,999 to 100,000.
   VERSIONS: [
     {
-      label: 'V3 DTC',
-      minId: 80_000,
-      maxId: Infinity,
+      label: 'V3',
+      minId: -1,
+      maxId: -1,
       color: '#FFD700',
       outlineColor: '#FF8C00',
       pixelSize: 10,
       pulse: true,
-      spec: '~150 Mbps · True V3 DTC hardware · 330 km orbit',
+      spec: 'Starlink V3 · ~1 Tbps down / 160 Gbps up · Starship-launched',
     },
     {
-      label: 'V3 orbit',
-      minId: 999_998,
-      maxId: 999_999,
+      label: '330 km VLEO',
+      minId: -1,
+      maxId: -1,
       color: '#ff4500',
       pixelSize: 6,
       pulse: false,
-      spec: '330 km VLEO shell · Current-gen hardware',
+      spec: '330 km VLEO shell · Pre-V3 hardware',
     },
     {
       label: 'V2',
       minId: 56_100,
-      maxId: 79_999,
+      maxId: Infinity,
       color: '#00cfff',
       pixelSize: 5,
       pulse: false,

@@ -11,7 +11,7 @@
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Cesium.js"></script>
 
   <!-- satellite.js -->
-  <script src="https://unpkg.com/satellite.js@4.1.4/dist/satellite.min.js"></script>
+  <script src="https://unpkg.com/satellite.js@6.0.2/dist/satellite.min.js"></script>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -40,21 +40,6 @@
       font-size: 13px;
       color: #ccc;
       pointer-events: none;
-      z-index: 10;
-    }
-
-    /* ── V3 watch banner ── */
-    #v3-banner {
-      display: none;
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      padding: 10px 20px;
-      font-size: 14px;
-      font-weight: 600;
-      text-align: center;
-      background: #1a1a2e;
-      border-top: 2px solid #ff4500;
-      color: #fff;
       z-index: 10;
     }
 
@@ -198,7 +183,7 @@
       background: rgba(255,255,255,0.08);
     }
 
-    /* ── V3 countdown ── */
+    /* ── V3 status panel ── */
     #countdown-panel {
       position: fixed;
       bottom: 20px; left: 20px;
@@ -268,7 +253,7 @@
     </div>
     <div class="legend-item">
       <div class="legend-dot" style="background:#FFD700; box-shadow:0 0 6px #FF8C00"></div>
-      <span>V3 DTC (Q4 2026)</span>
+      <span>V3</span>
     </div>
   </div>
 
@@ -276,23 +261,22 @@
     <button class="filter-btn active" onclick="setOrbitFilter('all', this)">All orbits</button>
     <button class="filter-btn" onclick="setOrbitFilter('550', this)">550 km LEO</button>
     <button class="filter-btn" onclick="setOrbitFilter('330', this)">330 km VLEO</button>
+    <button class="filter-btn" onclick="setOrbitFilter('v3', this)">V3</button>
   </div>
 
   <div id="countdown-panel">
-    <h4>⚡ Starlink V3 DTC Launch</h4>
+    <h4>⚡ Starlink V3</h4>
     <div id="countdown-digits">–</div>
     <div id="countdown-label"></div>
   </div>
 
-  <div id="v3-banner"></div>
-
   <div id="popup"></div>
 
   <!-- App scripts (order matters: config → tle → tracker → popup) -->
-  <script src="config.js?v=6"></script>
-  <script src="tle.js?v=6"></script>
-  <script src="tracker.js?v=6"></script>
-  <script src="popup.js?v=6"></script>
+  <script src="config.js?v=7"></script>
+  <script src="tle.js?v=7"></script>
+  <script src="tracker.js?v=7"></script>
+  <script src="popup.js?v=7"></script>
 
   <script>
     (async () => {

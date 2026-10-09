@@ -1,4 +1,9 @@
-// Vercel serverless function — caching proxy for CelesTrak Starlink TLE data.
+// Vercel serverless function — caching proxy for CelesTrak Starlink GP data.
+//
+// Served as OMM CSV, not TLE: objects catalogued since July 2026 have 6-digit
+// NORAD IDs (100000+), which the fixed-width TLE format cannot carry, so
+// CelesTrak omits them from FORMAT=TLE. CSV keeps the payload around a third
+// the size of JSON, well under Vercel's response limit.
 //
 // Vercel's CDN caches a successful response for 2 hours (s-maxage=7200).
 // During a CelesTrak outage, stale-while-revalidate=86400 keeps serving the
@@ -7,8 +12,8 @@
 // once per visitor — and the app survives day-long CelesTrak outages.
 
 const SOURCES = [
-  'https://celestrak.org/NORAD/elements/gp.php?NAME=STARLINK&FORMAT=TLE',
-  'https://celestrak.org/NORAD/elements/gp.php?SPECIAL=starlink&FORMAT=TLE',
+  'https://celestrak.org/NORAD/elements/gp.php?NAME=STARLINK&FORMAT=CSV',
+  'https://celestrak.org/NORAD/elements/gp.php?SPECIAL=starlink&FORMAT=CSV',
 ];
 
 export default async function handler(req, res) {
@@ -25,10 +30,10 @@ export default async function handler(req, res) {
       const text = await upstream.text();
 
       // CelesTrak sends this body (with various HTTP codes) when data hasn't changed
-      if (text.startsWith('GP data') || text.length < 1000) continue;
+      if (!text.startsWith('OBJECT_NAME') || text.length < 1000) continue;
 
       res.setHeader('Cache-Control', 's-maxage=7200, stale-while-revalidate=86400');
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Access-Control-Allow-Origin', '*');
       return res.status(200).send(text);
     } catch (_) {

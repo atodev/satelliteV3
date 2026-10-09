@@ -29,18 +29,17 @@ function initViewer() {
   });
 
   pointCollection = viewer.scene.primitives.add(new Cesium.PointPrimitiveCollection());
-  startCountdown();
   return viewer;
 }
 
 async function loadSatellites() {
-  updateStatus('Fetching TLE data… (may take up to 30s)');
+  updateStatus('Fetching orbital data… (may take up to 30s)');
 
   let result;
   try {
     result = await fetchTLEs();
   } catch (err) {
-    updateStatus('Failed to fetch TLE data.');
+    updateStatus('Failed to fetch orbital data.');
     console.error(err);
     return;
   }
@@ -62,15 +61,19 @@ async function loadSatellites() {
     ? ` (cached data, ${result.ageHours.toFixed(1)}h old)`
     : '';
 
-  const filtered = filterByOrbit(all, CONFIG.ORBIT_FILTER_KM);
+  // V3s are always shown, wherever they are in their orbit raise
+  const v3 = all.filter(s => s.isV3);
+  const others = all.filter(s => !s.isV3);
 
-  // Always include V3-orbit satellites and override their version to V3 styling
-  const v3Found = checkForV3(all);
-  const v3Version = CONFIG.VERSIONS.find(v => v.label === 'V3 orbit');
-  const v3Display = v3Found.map(s => ({ ...s, version: v3Version }));
+  const filtered = filterByOrbit(others, CONFIG.ORBIT_FILTER_KM);
 
-  const toRender = [...filtered, ...v3Display];
-  updateStatus(`${filtered.length} at 550 km · ${v3Display.length} at 330 km${cacheLabel}.`);
+  // Always include 330 km shell satellites, restyled as VLEO
+  const vleoVersion = getVersionByLabel('330 km VLEO');
+  const vleo = filterByOrbit(others, CONFIG.VLEO_ORBIT_KM)
+    .map(s => ({ ...s, version: vleoVersion }));
+
+  const toRender = [...filtered, ...vleo, ...v3];
+  updateStatus(`${filtered.length} at 550 km · ${vleo.length} at 330 km · ${v3.length} V3${cacheLabel}.`);
 
   // Rebuild point collection
   pointCollection.removeAll();
@@ -88,11 +91,8 @@ async function loadSatellites() {
     satelliteData.push({ ...sat, point });
   }
 
-  const trueV3 = v3Found.filter(s => s.noradId >= CONFIG.V3_TRUE_MIN_NORAD_ID);
-  if (trueV3.length > 0) {
-    announceV3(trueV3);
-    startPulse();
-  }
+  updateV3Panel(v3);
+  if (v3.length > 0) startPulse();
 
   propagateAll();
   startAnimationLoop();
@@ -103,7 +103,7 @@ function propagateAll() {
   const now = new Date();
   for (const sat of satelliteData) {
     const posVel = satellite.propagate(sat.satrec, now);
-    if (!posVel.position) continue;
+    if (!posVel || !posVel.position) continue;
 
     const gmst = satellite.gstime(now);
     const geo = satellite.eciToGeodetic(posVel.position, gmst);
@@ -146,61 +146,43 @@ function setOrbitFilter(filter, btn) {
 
   for (const sat of satelliteData) {
     const is550 = sat.altKm >= CONFIG.ORBIT_FILTER_KM.min && sat.altKm <= CONFIG.ORBIT_FILTER_KM.max;
-    const is330 = sat.altKm >= CONFIG.V3_ORBIT_KM.min && sat.altKm <= CONFIG.V3_ORBIT_KM.max;
+    const is330 = sat.altKm >= CONFIG.VLEO_ORBIT_KM.min && sat.altKm <= CONFIG.VLEO_ORBIT_KM.max;
 
     sat.point.show = filter === 'all'
       || (filter === '550' && is550)
-      || (filter === '330' && is330);
+      || (filter === '330' && is330)
+      || (filter === 'v3' && sat.isV3);
   }
 }
 
-function announceV3(v3Sats) {
-  const banner = document.getElementById('v3-banner');
-  if (!banner) return;
-  banner.textContent = `330 km VLEO shell: ${v3Sats.length} satellites active. True V3 DTC hardware expected Q4 2026.`;
-  banner.style.background = '#ff4500';
-  banner.style.display = 'block';
-}
+// ── V3 status panel ───────────────────────────────────────────────────────
 
-// ── Countdown ─────────────────────────────────────────────────────────────
-
-function startCountdown() {
-  updateCountdown();
-  setInterval(updateCountdown, 1000);
-}
-
-function updateCountdown() {
+function updateV3Panel(v3Sats) {
   const panel  = document.getElementById('countdown-panel');
   const digits = document.getElementById('countdown-digits');
   const label  = document.getElementById('countdown-label');
-  if (!panel || !digits) return;
+  if (!panel || !digits || !label) return;
 
-  const now  = Date.now();
-  const target = CONFIG.V3_LAUNCH_TARGET.getTime();
-  const diff = target - now;
+  const launch = CONFIG.V3_LAUNCHES[CONFIG.V3_LAUNCHES.length - 1];
+  panel.classList.add('launched');
 
-  if (diff <= 0) {
-    // Launch window open — check if CelesTrak has real V3 yet
-    panel.classList.add('launched');
-    digits.textContent = 'Launch window open';
-    label.textContent = 'Watching CelesTrak for V3 DTC satellites…';
+  if (v3Sats.length === 0) {
+    digits.textContent = 'Not in current feed';
+    label.textContent = `Last launch ${launch.date} · ${launch.label}`;
     return;
   }
 
-  const days  = Math.floor(diff / 86_400_000);
-  const hours = Math.floor((diff % 86_400_000) / 3_600_000);
-  const mins  = Math.floor((diff % 3_600_000) / 60_000);
-  const secs  = Math.floor((diff % 60_000) / 1_000);
-
-  digits.textContent =
-    `${days}d  ${String(hours).padStart(2,'0')}h  ${String(mins).padStart(2,'0')}m  ${String(secs).padStart(2,'0')}s`;
-  label.textContent = CONFIG.V3_LAUNCH_DATE_LABEL;
+  const alts = v3Sats.map(s => s.altKm);
+  const lo = Math.round(Math.min(...alts));
+  const hi = Math.round(Math.max(...alts));
+  digits.textContent = `${v3Sats.length} in orbit · ${lo === hi ? lo : `${lo}–${hi}`} km`;
+  label.textContent = `Last launch ${launch.date} · ${launch.label}`;
 }
 
-// ── V3 DTC pulse animation ─────────────────────────────────────────────────
+// ── V3 pulse animation ─────────────────────────────────────────────────
 
-function pulseTrueV3() {
-  const base = CONFIG.VERSIONS.find(v => v.label === 'V3 DTC');
+function pulseV3() {
+  const base = getVersionByLabel('V3');
   if (!base) return;
   const amplitude = 4;
   const period = 1500; // ms for one full pulse
@@ -217,5 +199,5 @@ let pulseTimer = null;
 
 function startPulse() {
   if (pulseTimer) return;
-  pulseTimer = setInterval(pulseTrueV3, 50);
+  pulseTimer = setInterval(pulseV3, 50);
 }

@@ -32,7 +32,7 @@ function showPopup(sat, screenPos) {
   popup.innerHTML = `
     <div class="popup-name">${sat.name}</div>
     <span class="popup-badge" style="background:${version.color}">${version.label}</span>
-    <div class="popup-alt">Altitude: ${altKm} km</div>
+    <div class="popup-alt">Altitude: ${altKm} km · NORAD ${sat.noradId}</div>
     <div class="popup-spec">${version.spec}</div>
     ${imgHtml}
   `;

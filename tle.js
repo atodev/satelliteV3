@@ -1,11 +1,15 @@
 // Earth's gravitational parameter (km³/s²) and radius (km)
 const GM = 398600.4418;
 const EARTH_RADIUS_KM = 6371;
-const CACHE_KEY = 'starlink_tle_cache';
+const CACHE_KEY = 'starlink_gp_cache';
+const LEGACY_CACHE_KEY = 'starlink_tle_cache'; // pre-OMM cache, ~2 MB of TLE text
 
 // CelesTrak returns 403 when data hasn't changed since the last download from
 // this IP (2-hour dedup window). We try multiple URLs with separate dedup keys,
-// and fall back to localStorage-cached TLE text so the app always shows satellites.
+// and fall back to localStorage-cached GP data so the app always shows satellites.
+//
+// Data is OMM CSV rather than TLE: satellites catalogued since July 2026 have
+// 6-digit NORAD IDs, which CelesTrak cannot serve in TLE format.
 async function fetchTLEs() {
   // Try each URL in order, with a 12-second timeout per attempt
   for (const url of CONFIG.CELESTRAK_URLS) {
@@ -20,9 +24,9 @@ async function fetchTLEs() {
       if (!resp.ok) continue;
 
       const text = await resp.text();
-      if (text.startsWith('GP data')) continue;
+      if (!text.startsWith('OBJECT_NAME')) continue;
 
-      const sats = parseTLEText(text);
+      const sats = parseGPText(text);
       if (sats.length > 0) {
         saveCache(text);
         return sats;
@@ -37,10 +41,11 @@ async function fetchTLEs() {
   return loadFromCache();
 }
 
-function saveCache(tleText) {
+function saveCache(gpText) {
   try {
+    localStorage.removeItem(LEGACY_CACHE_KEY);
     localStorage.setItem(CACHE_KEY, JSON.stringify({
-      text: tleText,
+      text: gpText,
       savedAt: Date.now(),
     }));
   } catch (_) {}
@@ -52,41 +57,60 @@ function loadFromCache() {
     if (!raw) return null;
     const { text, savedAt } = JSON.parse(raw);
     const ageHours = (Date.now() - savedAt) / 3_600_000;
-    const sats = parseTLEText(text);
+    const sats = parseGPText(text);
     if (sats.length > 0) {
-      console.info(`Using cached TLE data (${ageHours.toFixed(1)}h old).`);
+      console.info(`Using cached GP data (${ageHours.toFixed(1)}h old).`);
       return { sats, fromCache: true, ageHours };
     }
   } catch (_) {}
   return null;
 }
 
-function parseTLEText(text) {
+// Parses CelesTrak OMM CSV: a header row of field names, one satellite per row.
+function parseGPText(text) {
   const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  const fields = lines[0].split(',');
   const satellites = [];
 
-  for (let i = 0; i + 2 < lines.length; i += 3) {
-    const name = lines[i];
-    const tle1 = lines[i + 1];
-    const tle2 = lines[i + 2];
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(',');
+    if (values.length !== fields.length) continue;
 
-    if (!tle1.startsWith('1 ') || !tle2.startsWith('2 ')) continue;
+    const omm = {};
+    fields.forEach((f, j) => { omm[f] = values[j]; });
 
     try {
-      const satrec = satellite.twoline2satrec(tle1, tle2);
-      const noradId = parseInt(tle2.substring(2, 7).trim(), 10);
-      const altKm = meanAltitudeKm(tle2);
-      const version = getVersion(noradId);
-      satellites.push({ name, tle1, tle2, satrec, noradId, altKm, version });
+      const satrec = satellite.json2satrec(omm);
+      const noradId = parseInt(omm.NORAD_CAT_ID, 10);
+      const meanMotion = parseFloat(omm.MEAN_MOTION);
+      if (!Number.isFinite(noradId) || !Number.isFinite(meanMotion)) continue;
+
+      const launchId = launchOf(omm.OBJECT_ID);
+      const isV3 = CONFIG.V3_LAUNCHES.some(l => l.id === launchId);
+      satellites.push({
+        name: omm.OBJECT_NAME,
+        satrec,
+        noradId,
+        launchId,
+        isV3,
+        altKm: meanAltitudeKm(meanMotion),
+        inclination: parseFloat(omm.INCLINATION),
+        version: isV3 ? getVersionByLabel('V3') : getVersion(noradId),
+      });
     } catch (_) {}
   }
 
   return satellites;
 }
 
-function meanAltitudeKm(tle2) {
-  const n = parseFloat(tle2.substring(52, 63)); // rev/day
-  const nRad = n * 2 * Math.PI / 86400;         // rad/s
+// '2026-225AB' → '2026-225' (international designator minus the piece letters)
+function launchOf(objectId) {
+  const m = /^(\d{4}-\d{3})/.exec(objectId || '');
+  return m ? m[1] : '';
+}
+
+function meanAltitudeKm(revPerDay) {
+  const nRad = revPerDay * 2 * Math.PI / 86400;  // rad/s
   const a = Math.cbrt(GM / (nRad * nRad));       // semi-major axis km
   return a - EARTH_RADIUS_KM;
 }
@@ -98,12 +122,10 @@ function getVersion(noradId) {
   return CONFIG.VERSIONS[CONFIG.VERSIONS.length - 1];
 }
 
-function filterByOrbit(satellites, { min, max }) {
-  return satellites.filter(s => s.altKm >= min && s.altKm <= max);
+function getVersionByLabel(label) {
+  return CONFIG.VERSIONS.find(v => v.label === label);
 }
 
-function checkForV3(satellites) {
-  return satellites.filter(
-    s => s.altKm >= CONFIG.V3_ORBIT_KM.min && s.altKm <= CONFIG.V3_ORBIT_KM.max
-  );
+function filterByOrbit(satellites, { min, max }) {
+  return satellites.filter(s => s.altKm >= min && s.altKm <= max);
 }

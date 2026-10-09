@@ -76,10 +76,15 @@ const CONFIG = {
     },
   ],
 
+  // Hosted locally: hotlinked Wikimedia thumbnail URLs broke when paths changed.
+  // v1.jpg — "Starlink Mission (47926144123)", Official SpaceX Photos, CC0.
+  // v2-mini.jpg — "Falcon 9 Starlink 6-48 Launch", U.S. Space Force, public domain
+  //   (a V2 Mini launch; no free photo of the satellite itself exists yet).
+  // v3.svg — our own schematic until a free V3 photo exists.
   VERSION_IMAGES: {
-    'V1': 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Starlink_Mission_%2847926144123%29.jpg/320px-Starlink_Mission_%2847926144123%29.jpg',
-    'V2 Mini': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/SpaceX_Starlink_satellites_train.jpg/320px-SpaceX_Starlink_satellites_train.jpg',
-    'V2': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/SpaceX_Starlink_satellites_train.jpg/320px-SpaceX_Starlink_satellites_train.jpg',
-    'V3': '',
+    'V1': 'images/v1.jpg',
+    'V2 Mini': 'images/v2-mini.jpg',
+    'V2': 'images/v2-mini.jpg',
+    'V3': 'images/v3.svg',
   },
 };
